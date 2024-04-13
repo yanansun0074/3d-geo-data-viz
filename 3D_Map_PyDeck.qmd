@@ -1,0 +1,305 @@
+---
+title: "3D_Map_PyDeck"
+format: html
+---
+
+## PyDeck Mapping
+### 1. Sidewalk sheds and retail stores graphics
+#### Import data
+```{python}
+import pandas as pd
+# !pip install geopandas
+import geopandas as gpd
+# !pip install plotly
+import plotly.express as px
+# !pip install pydeck
+import pydeck as pdk
+# !pip install matplotlib
+import matplotlib.pyplot as plt
+```
+
+* Filter all sidewalk shed permit data to active permit data
+```{python}
+AP = pd.read_csv('All_Shed_Permits.csv')
+AP = AP[AP['active'] == True]
+
+# Compute age
+AP['created_date'] = pd.to_datetime(AP['created_date'])
+cur_date = pd.to_datetime('2024-02-01')
+AP['Age'] = (cur_date - AP['Age']).dt.days.astype(float)
+
+AP = AP[['job__', 'Age', 'lat', 'long', 'c_b_no']]
+# 10276 rows
+
+AP= AP[AP['c_b_no'].isna() == False]
+# 8835 rows
+```
+
+* Store front data
+```{python}
+RS = pd.read_csv('Retail_Stores.csv')
+RS = RS[['PROPERTY.STREET.ADDRESS.OR.STOREFRONT.ADDRESS','LATITUDE', 'LONGITUDE', 'PRIMARY.BUSINESS.ACTIVITY', 'COMMUNITY.BOARD']]
+```
+
+#### Compute 'Height' with sidewalk shed age
+```{python}
+def AgeHeight(age, mini, maxi):
+    return (age - mini) / (maxi-mini) * 1000
+
+AP['Height'] = AP['Age'].apply(lambda x: AgeHeight(x, AP['Age'].min(), AP['Age'].max()))
+```
+
+Compute 'Color' with the distance between a sidewalk shed and retail stores
+```{python}
+import math
+
+def haversine(lat1, lon1, lat2, lon2):
+    # Radius of the Earth in meters
+    R = 6371000
+    # Convert coordinates from degrees to radians
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    # Haversine formula
+    a = math.sin(delta_phi / 2.0) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * \
+        math.sin(delta_lambda / 2.0) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    distance = R * c  # Output distance in meters
+    return distance
+
+# Gray as the default
+AP['Color'] = AP['Age'].apply(lambda x: [210,196,174,200])
+AP['Around'] = False
+AP['ImpactNum'] = 0
+RS['Impacted'] = False
+```
+
+```{python}
+for index, row in AP.iterrows():
+    shed_cb = row['c_b_no']
+    shed_lat = row['lat']
+    shed_long = row['long']
+    if(RS[RS['COMMUNITY.BOARD'] == shed_cb].empty == False):
+        for a, b in RS[RS['COMMUNITY.BOARD'] == shed_cb].iterrows():
+            store_lat = b['LATITUDE']
+            store_long = b['LONGITUDE']
+            if(haversine(shed_lat, shed_long, store_lat, store_long)<=35):
+                AP.at[index, 'Around'] = True
+                AP.at[index, 'ImpactNum']+=1
+                RS.at[a, 'Impacted'] = True
+
+# Orange & Gray
+AP['Color'] = AP['Around'].apply(lambda x: [242,131,55,255] if x else [210,196,174,255])
+```
+
+#### PyDeck
+```{python}
+INITIAL_VIEW_STATE = pdk.ViewState(latitude=40.801412, 
+                                   longitude=-73.967279, 
+                                   zoom=12, max_zoom=16, pitch=60, bearing=0)
+
+```
+
+```{python}
+Age = pdk.Layer(
+    # "RectangleLayer",
+    "ColumnLayer",
+    AP,
+    get_position=["long", "lat"],
+    # get_position = ["Longitude Point", "Latitude Point"],
+    get_elevation='Height',
+    opacity = 0.5,
+    elevation_scale=1,  # Adjust based on your data
+    get_fill_color="Color",  # RGB color based on data
+    radius=12,  # Adjust the base radius of the columns
+    pickable=False,
+    auto_highlight=True,
+)
+
+store_scat = pdk.Layer(
+    'ScatterplotLayer',
+    RS,
+    get_position=['LONGITUDE', 'LATITUDE'],
+    auto_highlight=True,
+    get_radius=20,
+    get_fill_color = [161,218,180, 255],
+    get_line_color = [0,0,0,255],
+    get_line_width = 20,
+    pickable=False
+)
+
+r = pdk.Deck(layers=[Age, store_scat], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
+r.to_html("Shed_store_scat.html")
+```
+
+Only UWS
+```{python}
+UWS_shed = pdk.Layer(
+    # "RectangleLayer",
+    "ColumnLayer",
+    # AP[['Age', 'long', 'lat', 'Height', 'Color']],
+    # AP[['Age', 'Longitude Point', 'Latitude Point', 'Height', 'Color']],
+    AP[AP['job__'] == 'M00829794-I1'],
+    get_position=["long", "lat"],
+    # get_position = ["Longitude Point", "Latitude Point"],
+    get_elevation='Height',
+    opacity = 0.5,
+    elevation_scale=1,  # Adjust based on your data
+    # get_fill_color="Color",  # RGB color based on data
+    get_fill_color = [250,0,0,255],
+    radius=12,  # Adjust the base radius of the columns
+    pickable=True,
+    auto_highlight=True,
+)
+
+UWS = pdk.Layer(
+    'ScatterplotLayer',
+    RS[RS['PROPERTY.STREET.ADDRESS.OR.STOREFRONT.ADDRESS'] == '101'],
+    get_position=['LONGITUDE', 'LATITUDE'],
+    auto_highlight=True,
+    get_radius=20,
+    # get_fill_color="Color",
+    # Blue
+    # get_fill_color = [128,205,193,255],
+    get_fill_color = [161,218,180, 255],
+    get_line_color = [0,0,0,255],
+    get_line_width = 20,
+    pickable=True
+)
+
+r = pdk.Deck(layers=[UWS, UWS_shed], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
+r.to_html("UWS.html")
+```
+
+Gray sheds + store
+```{python}
+AP2 = AP
+# All gray
+AP2['Color'] = AP2['Age'].apply(lambda x: [210,196,174,255])
+# UWS red
+row1 = AP2[AP2['job__'] == 'M00829794-I1'].index[0]
+AP2.at[row1, 'Color'] = [250,0,0,255]
+
+Gray = pdk.Layer(
+    # "RectangleLayer",
+    "ColumnLayer",
+    # AP[['Age', 'long', 'lat', 'Height', 'Color']],
+    # AP[['Age', 'Longitude Point', 'Latitude Point', 'Height', 'Color']],
+    AP2,
+    get_position=["long", "lat"],
+    # get_position = ["Longitude Point", "Latitude Point"],
+    get_elevation='Height',
+    opacity = 0.5,
+    elevation_scale=1,  # Adjust based on your data
+    # get_fill_color="Color",  # RGB color based on data
+    get_fill_color = 'Color',
+    radius=12,  # Adjust the base radius of the columns
+    pickable=True,
+    auto_highlight=True,
+)
+
+store_scat = pdk.Layer(
+    'ScatterplotLayer',
+    RS,
+    get_position=['LONGITUDE', 'LATITUDE'],
+    auto_highlight=True,
+    get_radius=20,
+    # get_fill_color="Color",
+    # Blue
+    # get_fill_color = [128,205,193,255],
+    get_fill_color = [161,218,180, 255],
+    get_line_color = [0,0,0,255],
+    get_line_width = 20,
+    pickable=True
+)
+
+r = pdk.Deck(layers=[Gray, store_scat], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
+r.to_html("Shed_store_scat_gray_2.html")
+
+```
+
+### 2. Sidewalk shed cost graphics
+
+#### Import data
+
+```{python}
+# Job Number; Sidewalk Shed/Linear Feet
+length = pd.read_csv('Active_Sheds2.csv')
+length2 = length[["Job Number", "Sidewalk Shed/Linear Feet", "Age", "Latitude Point", "Longitude Point"]]
+length2.loc[length2['Sidewalk Shed/Linear Feet'] == 0] = 35
+```
+
+#### Height & color computation
+Compute cost: 
+installment cost = sidewalk shed linear feet * 115 (unit price)
+total cost = installment cost + consecutive month * 10% * installment cost
+```{python}
+length2['month'] = length['Age'] / 30 - 1
+length2.loc[length2['month'] <0,]['month'] = 0
+length2['first_cost'] = length2["Sidewalk Shed/Linear Feet"] * 115
+length2['rent'] = length2['first_cost'] * 0.1
+length2['cost'] = length2['first_cost'] + length2['rent'] * length2['month']
+length2['lng'] = length2['Longitude Point']
+length2['lat'] = length2['Latitude Point']
+```
+
+Compute height
+```{python}
+length2['Height'] = length2['Age'].apply(lambda x: AgeHeight(x, length2['Age'].min(), length2['Age'].max()))
+```
+
+Compute color
+```{python}
+def ColorRange(cost, colors):
+    if(cost < 1000): return colors[0]
+    if(cost < 10000): return colors[1]
+    if(cost < 100000): return colors[2]
+    if(cost < 500000): return colors[3]
+    return colors[4]
+ 
+
+cost_color2 = [[222,203,228, 255], [204,235,197, 255], [179,205,227, 255], [254,217,166, 255], [251,180,174, 255]]
+
+cost_color = [[152,78,163, 255], [55,126,184, 255], [77,175,74, 255], [255,127,0, 255], [228,26,28, 255]]
+
+length2['Color'] = length2['cost'].apply(lambda x: ColorRange(x, cost_color2))
+
+```
+
+#### PyDeck
+```{python}
+costs = pdk.Layer(
+    "ColumnLayer",
+    length2[['cost', 'lng', 'lat', 'Color', 'Age', 'Height']],
+    get_position=["lng", "lat"],
+    get_elevation='Height',
+    opacity = 1,
+    elevation_scale=1,  
+    get_fill_color="Color",  
+    radius=15,  
+    pickable=True,
+    auto_highlight=True,
+)
+
+r = pdk.Deck(layers=costs, map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
+r.to_html("Sheds_cost_age.html")
+
+```
+
+
+##### What is the mean length of sidewalk shed
+
+```{python}
+length = pd.read_csv("Active_Sheds2.csv")
+length.info()
+length['Sidewalk Shed/Linear Feet'].value_counts()
+    # feet      count
+    # 35.0      270
+    # 30.0      251
+    # 60.0      193
+    # 40.0      136
+    # 50.0      129
+length['Sidewalk Shed/Linear Feet'].mean() # mean: 226.14377476538058
+```
