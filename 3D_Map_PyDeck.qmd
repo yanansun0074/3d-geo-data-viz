@@ -3,45 +3,116 @@ title: "3D_Map_PyDeck"
 format: html
 ---
 
-## PyDeck Mapping
-### 1. Sidewalk sheds and retail stores graphics
-#### Import data
+# 3D Geospatial Mapping with PyDeck
+
+PyDeck is an interactive spatial data visualization library in Python. Powered by deck.gl, it can quickly execute high-precision mapping for a large dataset and integrate with commonly used map providers such as Google Maps, Mapbox, and more. It takes a “layer” approach when creating visualizations, making it easy to compile, test, and reuse.
+
+This tutorial will walk you through how to make two 3D visualization in the sidewalk shed story. One for sidewalk sheds' proximity with stores, the other for the estimated cost level of sidewalk sheds. Generally speaking, there are a few steps to be completed:
+1. Install and import PyDeck: only need to do this once in a notebook.
+2. Import data
+3. Compute data (optional)
+4. Configure PyDeck layers
+5. Add layer(s) to Deck
+6. Export to .html file
+
+Rather than trying to improve upon existing tutorials of PyDeck (which there are many online), this tutorial attempts to be a reference for using PyDeck for journalistic data visualization practices with a short turnaround time.
+
+## Graph 1: Sidewalk sheds and stores
+
+### Install and import PyDeck
+In the Python environment, install PyDeck and import it (as well as other required library).
 ```{python}
-import pandas as pd
-# !pip install geopandas
-import geopandas as gpd
-# !pip install plotly
-import plotly.express as px
-# !pip install pydeck
+!pip install pydeck
 import pydeck as pdk
-# !pip install matplotlib
-import matplotlib.pyplot as plt
+# import pandas
+import pandas as pd
 ```
 
-* Filter all sidewalk shed permit data to active permit data
+### Import data
+* 1. Sidewalk shed permit data
+Import the datast you need with pandas. Here, we need all sidewalk shed permits data, 
 ```{python}
 AP = pd.read_csv('All_Shed_Permits.csv')
-AP = AP[AP['active'] == True]
-
-# Compute age
-AP['created_date'] = pd.to_datetime(AP['created_date'])
-cur_date = pd.to_datetime('2024-02-01')
-AP['Age'] = (cur_date - AP['Age']).dt.days.astype(float)
-
-AP = AP[['job__', 'Age', 'lat', 'long', 'c_b_no']]
-# 10276 rows
-
-AP= AP[AP['c_b_no'].isna() == False]
-# 8835 rows
 ```
 
-* Store front data
+Then, filter to active sidewalk shed permits only. We also need to compute the age of each sidewalk shed as the difference between their creation dates and Feb 01, 2024.
+
+Make sure that there is no *null* value in your dataset to prevent error in PyDeck. 
+```{python}
+AP = AP[AP['active'] == True]
+
+# Compute age of each sidewalk shed
+AP['created_date'] = pd.to_datetime(AP['created_date'])
+cur_date = pd.to_datetime('2024-02-01')
+AP['Age'] = (cur_date - AP['created_date']).dt.days.astype(float)
+
+AP = AP[['job__', 'Age', 'lat', 'long', 'c_b_no']]
+
+AP= AP[(AP['c_b_no'].isna() == False) & (AP['lat'].isna() == False) & (AP['long'].isna() == False)]
+```
+
+* 2. Store front vacancy data
+Similarly, import the store front vacancy data with information about all non-empty store in NYC.
 ```{python}
 RS = pd.read_csv('Retail_Stores.csv')
 RS = RS[['PROPERTY.STREET.ADDRESS.OR.STOREFRONT.ADDRESS','LATITUDE', 'LONGITUDE', 'PRIMARY.BUSINESS.ACTIVITY', 'COMMUNITY.BOARD']]
 ```
 
-#### Compute 'Height' with sidewalk shed age
+This dataset is already cleaned so that there is no null value. But bonus point if you could filter the 'LATITUDE' and 'LONGITUDE' column with is.na()
+
+```{python}
+# Your code here!
+
+```
+
+### Initialize a ViewState
+To use PyDeck, first initialize a ViewState, which is where the screen is focused as the file is opened. As the scope of this story is in New York City, I changed the initial focus position to the Midtown area of Manhattan, where a number of sidewalk sheds are still active, by setting the **latitude** and **longitude**. 
+
+```{python}
+INITIAL_VIEW_STATE = pdk.ViewState(latitude=40.801412, 
+                                   longitude=-73.967279, 
+                                   zoom=12, max_zoom=16, pitch=60, bearing=0)
+
+```
+
+### Configure layers by setting parameters
+Then, create the visualization by each layer that you would like to use. For any layer, one must specify the layer type, a unique id, the dataset used in this layer, and any passable parameters to this layer. 
+
+There are an abundance of different 2D and 3D layers for different purposes. Choose the one that fits your story the most with examples from the “Layer Catalog Overview” (https://deck.gl/docs/api-reference/layers).
+
+For example, use the "ColumnLayer" to visualize all the active sidewalk shed permits in NYC. Specify the layer name, dataset to use, position of each column, and other information in the "**Layer**" class. 
+```{python}
+Sheds = pdk.Layer(
+    "ColumnLayer",                      # Layer name
+    AP,                                 # Dataframe
+    get_position=["long", "lat"],       # Position of the columns       
+    get_elevation=100,                  # Height of the columns
+    opacity = 0.5,                      # Opacity                      
+    get_fill_color=[250,0,0,255],       # Color of the columns: [r,g,b,a]
+    radius=12,                          # Radius of the columns
+    pickable=False,                     # Whether the columns are interactable
+    auto_highlight=True,
+)
+```
+
+### Add layers to Deck
+To add one or more layers into the graph, change the “layers” parameters in Deck class. To avoid errors, a layer must be declared before being used. Likewise, initial_view_state should also take a declared view state.
+
+The style of the base map can also be chosen from ‘light’, ‘dark’, ‘road’, ‘satellite’, ‘dark_no_labels’, and ‘light_no_labels’ by changing the map_style parameter.
+```{python}
+r = pdk.Deck(layers=[Sheds], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
+```
+
+### Export to .html file
+Finally, use to_html to save the visualization as a .html file. The file should be saved under the same directory as this notebook. Open it in your browser to see how it looks!
+```{python}
+r.to_html("Sheds.html")
+```
+
+Now, we've completed the first round of 3D geographical visualization, which gives us an interactive html that in which we can zoom in and out, pan, and hover over data points. But instead of showing only the position, we should also leverage the other dimensions in 3D visualizaiton. In the next round of visualization, we'll use the **height** of each column to represent the age of a sidewalk shed and the color to show whether it is proximate to stores.
+
+### Compute data
+Use the same active sidewalk shed permit dataset and calculate the normalized height with the "Age".
 ```{python}
 def AgeHeight(age, mini, maxi):
     return (age - mini) / (maxi-mini) * 1000
@@ -49,7 +120,7 @@ def AgeHeight(age, mini, maxi):
 AP['Height'] = AP['Age'].apply(lambda x: AgeHeight(x, AP['Age'].min(), AP['Age'].max()))
 ```
 
-Compute 'Color' with the distance between a sidewalk shed and retail stores
+Next, compute 'Color' with the distance between a sidewalk shed and retail stores. We first define a function to calculate the distance between two geographical coordinates. Add a "Color" column for active sidewalk sheds with gray [210,196,174,200] as the default color.
 ```{python}
 import math
 
@@ -76,6 +147,7 @@ AP['ImpactNum'] = 0
 RS['Impacted'] = False
 ```
 
+For each sidewalk shed permits in the data, calculate its distance with stores in the same community board. If any of their distances is smaller than 35 meters, the sidewalk shed is proximate to a business, and therefore we change its "Color" to orange [242,131,55,255].
 ```{python}
 for index, row in AP.iterrows():
     shed_cb = row['c_b_no']
@@ -94,31 +166,47 @@ for index, row in AP.iterrows():
 AP['Color'] = AP['Around'].apply(lambda x: [242,131,55,255] if x else [210,196,174,255])
 ```
 
-#### PyDeck
+### Configure layers by setting parameters
+We define a new layer and specify additional parameters in a simiar way. Instead of one value, we use column "Height for “get_elevation” and "Color" for “get_fill_color”
 ```{python}
-INITIAL_VIEW_STATE = pdk.ViewState(latitude=40.801412, 
-                                   longitude=-73.967279, 
-                                   zoom=12, max_zoom=16, pitch=60, bearing=0)
-
-```
-
-```{python}
-Age = pdk.Layer(
-    # "RectangleLayer",
+Sheds2 = pdk.Layer(
     "ColumnLayer",
     AP,
     get_position=["long", "lat"],
-    # get_position = ["Longitude Point", "Latitude Point"],
-    get_elevation='Height',
+    get_elevation='Height',             # Heights represent the age of sidewalk sheds
     opacity = 0.5,
-    elevation_scale=1,  # Adjust based on your data
-    get_fill_color="Color",  # RGB color based on data
-    radius=12,  # Adjust the base radius of the columns
+    elevation_scale=1,  
+    get_fill_color="Color",             # Color means whether there are stores around               
+    radius=12, 
     pickable=False,
     auto_highlight=True,
 )
 
-store_scat = pdk.Layer(
+```
+
+After configuring a new layer, we need to add layer to Deck and export to .html file. Could you do it on your own.
+Hint: refer to the code above
+
+```{python}
+# Your code here!
+
+
+```
+
+Here's how to do it:
+```{python}
+r = pdk.Deck(layers=[Sheds2], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
+r.to_html("Sheds2.html")
+```
+
+Next, we can also add more contextual information by visualizing the locations of both sidewalk sheds and retail stores on a map. Visualizing thousands of data points or two distinct types would be limiting on a 2D graph without potentially cluttering the design’s single perspective, negatively impacting how clearly it can visually communicate key takeaways. Thus, use 3D blocks for sidewalk sheds and 2D circles for retail stores to show the extensive scale of sidewalk sheds’ impacts while preventing the overlapping problem that clutters readability.
+
+Since we already have all the information required in the store data(position), we don't need any computation at this moment.
+
+### Configure layers by setting parameters
+We use 2D circles to show the position of retail stores with the layer "ScatterplotLayer". Set the position parameter for stores with their longitude and latitude. Other parameters are arbitraty in this case. Since these are 2D circles, there is no height for this layer.
+```{python}
+Stores = pdk.Layer(
     'ScatterplotLayer',
     RS,
     get_position=['LONGITUDE', 'LATITUDE'],
@@ -129,101 +217,22 @@ store_scat = pdk.Layer(
     get_line_width = 20,
     pickable=False
 )
-
-r = pdk.Deck(layers=[Age, store_scat], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
-r.to_html("Shed_store_scat.html")
 ```
 
-Only UWS
+### Add layers to Deck
+One advantage of PyDeck is that each layer is separate. One could initialize more than one layer respectively and add multiple layers into one visualization altogether. 
 ```{python}
-UWS_shed = pdk.Layer(
-    # "RectangleLayer",
-    "ColumnLayer",
-    # AP[['Age', 'long', 'lat', 'Height', 'Color']],
-    # AP[['Age', 'Longitude Point', 'Latitude Point', 'Height', 'Color']],
-    AP[AP['job__'] == 'M00829794-I1'],
-    get_position=["long", "lat"],
-    # get_position = ["Longitude Point", "Latitude Point"],
-    get_elevation='Height',
-    opacity = 0.5,
-    elevation_scale=1,  # Adjust based on your data
-    # get_fill_color="Color",  # RGB color based on data
-    get_fill_color = [250,0,0,255],
-    radius=12,  # Adjust the base radius of the columns
-    pickable=True,
-    auto_highlight=True,
-)
-
-UWS = pdk.Layer(
-    'ScatterplotLayer',
-    RS[RS['PROPERTY.STREET.ADDRESS.OR.STOREFRONT.ADDRESS'] == '101'],
-    get_position=['LONGITUDE', 'LATITUDE'],
-    auto_highlight=True,
-    get_radius=20,
-    # get_fill_color="Color",
-    # Blue
-    # get_fill_color = [128,205,193,255],
-    get_fill_color = [161,218,180, 255],
-    get_line_color = [0,0,0,255],
-    get_line_width = 20,
-    pickable=True
-)
-
-r = pdk.Deck(layers=[UWS, UWS_shed], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
-r.to_html("UWS.html")
+r = pdk.Deck(layers=[Sheds2, Stores], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
 ```
 
-Gray sheds + store
+### Export to .html file
 ```{python}
-AP2 = AP
-# All gray
-AP2['Color'] = AP2['Age'].apply(lambda x: [210,196,174,255])
-# UWS red
-row1 = AP2[AP2['job__'] == 'M00829794-I1'].index[0]
-AP2.at[row1, 'Color'] = [250,0,0,255]
-
-Gray = pdk.Layer(
-    # "RectangleLayer",
-    "ColumnLayer",
-    # AP[['Age', 'long', 'lat', 'Height', 'Color']],
-    # AP[['Age', 'Longitude Point', 'Latitude Point', 'Height', 'Color']],
-    AP2,
-    get_position=["long", "lat"],
-    # get_position = ["Longitude Point", "Latitude Point"],
-    get_elevation='Height',
-    opacity = 0.5,
-    elevation_scale=1,  # Adjust based on your data
-    # get_fill_color="Color",  # RGB color based on data
-    get_fill_color = 'Color',
-    radius=12,  # Adjust the base radius of the columns
-    pickable=True,
-    auto_highlight=True,
-)
-
-store_scat = pdk.Layer(
-    'ScatterplotLayer',
-    RS,
-    get_position=['LONGITUDE', 'LATITUDE'],
-    auto_highlight=True,
-    get_radius=20,
-    # get_fill_color="Color",
-    # Blue
-    # get_fill_color = [128,205,193,255],
-    get_fill_color = [161,218,180, 255],
-    get_line_color = [0,0,0,255],
-    get_line_width = 20,
-    pickable=True
-)
-
-r = pdk.Deck(layers=[Gray, store_scat], map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
-r.to_html("Shed_store_scat_gray_2.html")
-
+r.to_html("Shed_store.html")
 ```
 
-### 2. Sidewalk shed cost graphics
 
-#### Import data
-
+## Graph 2. Sidewalk shed estimated costs
+### Import data
 ```{python}
 # Job Number; Sidewalk Shed/Linear Feet
 length = pd.read_csv('Active_Sheds2.csv')
@@ -231,7 +240,7 @@ length2 = length[["Job Number", "Sidewalk Shed/Linear Feet", "Age", "Latitude Po
 length2.loc[length2['Sidewalk Shed/Linear Feet'] == 0] = 35
 ```
 
-#### Height & color computation
+### Compute data
 Compute cost: 
 installment cost = sidewalk shed linear feet * 115 (unit price)
 total cost = installment cost + consecutive month * 10% * installment cost
@@ -268,9 +277,9 @@ length2['Color'] = length2['cost'].apply(lambda x: ColorRange(x, cost_color2))
 
 ```
 
-#### PyDeck
+### Configure layers by setting parameters
 ```{python}
-costs = pdk.Layer(
+Costs = pdk.Layer(
     "ColumnLayer",
     length2[['cost', 'lng', 'lat', 'Color', 'Age', 'Height']],
     get_position=["lng", "lat"],
@@ -283,23 +292,15 @@ costs = pdk.Layer(
     auto_highlight=True,
 )
 
-r = pdk.Deck(layers=costs, map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
-r.to_html("Sheds_cost_age.html")
-
 ```
 
-
-##### What is the mean length of sidewalk shed
-
+### Add layers to Deck
 ```{python}
-length = pd.read_csv("Active_Sheds2.csv")
-length.info()
-length['Sidewalk Shed/Linear Feet'].value_counts()
-    # feet      count
-    # 35.0      270
-    # 30.0      251
-    # 60.0      193
-    # 40.0      136
-    # 50.0      129
-length['Sidewalk Shed/Linear Feet'].mean() # mean: 226.14377476538058
+r = pdk.Deck(layers=Costs, map_style = "light", initial_view_state=INITIAL_VIEW_STATE)
 ```
+
+### Export to .html file
+```{python}
+r.to_html("Sheds_cost_length.html")
+```
+
