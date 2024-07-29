@@ -22,7 +22,7 @@ Rather than trying to improve upon existing tutorials of PyDeck (which there are
 ### Install and import PyDeck
 In the Python environment, install PyDeck and import it (as well as other required library).
 ```{python}
-!pip install pydeck
+# pip install pydeck
 import pydeck as pdk
 # import pandas
 import pandas as pd
@@ -42,7 +42,7 @@ Make sure that there is no *null* value in your dataset to prevent error in PyDe
 AP = AP[AP['active'] == True]
 
 # Compute age of each sidewalk shed
-AP['created_date'] = pd.to_datetime(AP['created_date'])
+AP['created_date'] = pd.to_datetime(AP['created_date'], format='mixed')
 cur_date = pd.to_datetime('2024-02-01')
 AP['Age'] = (cur_date - AP['created_date']).dt.days.astype(float)
 
