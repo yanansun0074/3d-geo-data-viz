@@ -2,7 +2,7 @@
 
 This is the repo for "City of Non-Stop Sidewalk Sheds", as part of the project "3D Geospatial Data Visualization in journalism"
 
-[![](https://github.com/codespaces/badge.svg)](https://urban-adventure-q77p7q5pr4729677.github.dev/)
+[![](https://github.com/codespaces/badge.svg)](https://glorious-eureka-447j5rq57qxhwv9.github.dev/)
 
 ### There might be three things you want from this github repo:
 
