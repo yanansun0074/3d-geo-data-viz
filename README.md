@@ -2,13 +2,15 @@
 
 This is the repo for "City of Non-Stop Sidewalk Sheds", as part of the project "3D Geospatial Data Visualization in journalism"
 
+[![](https://github.com/codespaces/badge.svg)](https://urban-adventure-q77p7q5pr4729677.github.dev/)
+
 ### There might be three things you want from this github repo:
 
 1. If you're interested in the methodology of the article, go to the "Methodology" folder and follow "data_cleaning.qmd" for data cleaning --> "3D_Map_PyDeck.qmd" for 3D mapping.
 
 2. If you would like to learn about PyDeck for 3D geospatial visualizaiton in journalism, check out "Tutorial" folder only.
 
-3. "3D_Map_PyDeck_Template.ipynb" is a template for you to create your own 3D Map. I recommend trying it out after seeing the tutorial file.
+3. If you want to create your own 3D map with a template, go to the "Template" folder --> "3D_Map_PyDeck_Template.ipynb". There is also a "Data" file with "[Affordable Housing Production](https://data.cityofnewyork.us/Housing-Development/Affordable-Housing-Production-by-Building/hg8x-zxpr/about_data)" and "[NYPD Arrest Data](https://data.cityofnewyork.us/Public-Safety/NYPD-Arrest-Data-Year-to-Date-/uip8-fykc/about_data). You could also please with your own data. I recommend trying it out after seeing the tutorial file :）
 
 #### Data sources for the story:
 
