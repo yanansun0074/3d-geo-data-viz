@@ -7,3 +7,5 @@ RUN apt-get update && \
     pip install --upgrade pip
 
 RUN pip install ipykernel jupyter
+RUN pip install pandas
+
