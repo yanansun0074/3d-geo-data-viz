@@ -1,6 +1,6 @@
-# Sidewalk Shed in NYC
+# 3D Geo Data Viz
 
-This is the repo for "City of Non-Stop Sidewalk Sheds", as part of the project "3D Geospatial Data Visualization in journalism"
+This is the tutorial repo for "3D Geospatial Data Visualization in journalism", as part of the data reporting project "City of Non-Stop Sidewalk Sheds"
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/yanansun0074/city-of-sidewalk-shed)
 
